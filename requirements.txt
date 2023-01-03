@@ -1,0 +1,2 @@
+pillow >= 9.3 
+git+ssh://git@github.com/reinventingscience/ivcap-sdk-python.git@main#egg=ivcap_sdk_service&subdirectory=sdk_service
