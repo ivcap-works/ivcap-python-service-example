@@ -1,6 +1,7 @@
 from PIL import Image, ImageDraw, ImageFont
 
-from ivcap_sdk_service import Service, Parameter, Option, Type, register_service, deliver, cache_file
+from ivcap_sdk_service import Service, Parameter, Type, SupportedMimeTypes, ServiceArgs
+from ivcap_sdk_service import register_service, deliver_data, fetch_data
 import logging
 
 from typing import Dict
@@ -42,16 +43,16 @@ SERVICE = Service(
 )
 
 
-def service(args: Dict, svc_logger: logging):
+def service(args: ServiceArgs, svc_logger: logging):
     global logger 
     logger = svc_logger
 
     # Create an image
-    img = Image.new("RGB", (args.width, args.height), "white")
+    img = Image.new("RGBA", (args.width, args.height), "white")
     
     # Add background
     if args.img_url:
-        f = cache_file(args.img_url)
+        f = fetch_data(args.img_url)
         background = Image.open(f)
         img.paste(background)
     
@@ -61,10 +62,10 @@ def service(args: Dict, svc_logger: logging):
     center = (args.width / 2, args.height / 2)
     canvas.text(center, args.msg, font=font, anchor='mm', fill=(255, 130, 0))   
     
-    # Display edited image
-    #img.show()
-    
-    deliver("image.png", lambda fd: img.save(fd, format="png"),
-            type='image/png', msg=args.msg)
+    meta = {
+       '@type': 'urn:ivcap.test:simple-python-service',
+        **args._asdict(),
+    }
+    deliver_data("image.png", lambda fd: img.save(fd, format="png"), SupportedMimeTypes.JPEG, metadata=meta)
     
 register_service(SERVICE, service)
