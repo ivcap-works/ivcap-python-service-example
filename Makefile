@@ -30,9 +30,12 @@ DOCKER_LOCAL_DATA_DIR=/tmp/data
 IMG_URL=https://juststickers.in/wp-content/uploads/2016/07/go-programming-language.png
 
 run:
+	mkdir -p ${PROJECT_DIR}/data
 	python ${SERVICE_FILE} \
-	  --msg "$(shell date)" \
-		--img-url ${IMG_URL}
+	  --msg "$(shell date "+%d/%m-%H:%M:%S")" \
+		--img-url ${IMG_URL} \
+		--ivcap:out-dir ${PROJECT_DIR}/data
+	@echo ">>> Output should be in '${PROJECT_DIR}/data'"
 
 docker-run: #docker-build
 	# If running Minikube, the 'data' directory needs to be created inside minikube
@@ -45,8 +48,23 @@ docker-run: #docker-build
 		${DOCKER_NAME} \
 		--ivcap:in-dir /data/in \
 		--ivcap:out-dir /data/out \
-		--msg "$(shell date)" \
+		--msg "$(shell date "+%d/%m-%H:%M:%S")" \
 		--img-url ${IMG_URL}
+	@echo ">>> Output should be in '${DOCKER_LOCAL_DATA_DIR}' (might be inside minikube)"
+
+docker-run-nuitka:
+	make DOCKER_NAME=simple_python_service-nuitka run
+	
+docker-debug: #docker-build
+	# If running Minikube, the 'data' directory needs to be created inside minikube
+	mkdir -p ${DOCKER_LOCAL_DATA_DIR}/in ${DOCKER_LOCAL_DATA_DIR}/out
+	docker run -it \
+		-e IVCAP_INSIDE_CONTAINER="" \
+		-e IVCAP_ORDER_ID=ivcap:order:0000 \
+		-e IVCAP_NODE_ID=n0 \
+		-v ${DOCKER_LOCAL_DATA_DIR}:/data \
+		--entrypoint bash \
+		${DOCKER_NAME}
 
 docker-build:
 	@echo "Building docker image ${DOCKER_NAME}"
@@ -56,6 +74,17 @@ docker-build:
 		--build-arg BUILD_DATE="$(shell date)" \
 		-t ${DOCKER_NAME} \
 		-f ${PROJECT_DIR}/Dockerfile \
+		${PROJECT_DIR} ${DOCKER_BILD_ARGS}
+	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
+
+docker-build-nuitka:
+	@echo "Building docker image ${DOCKER_NAME}"
+	docker build \
+		--build-arg GIT_COMMIT=${GIT_COMMIT} \
+		--build-arg GIT_TAG=${GIT_TAG} \
+		--build-arg BUILD_DATE="$(shell date)" \
+		-t ${DOCKER_NAME}-nuitka \
+		-f ${PROJECT_DIR}/Dockerfile.nuitka \
 		${PROJECT_DIR} ${DOCKER_BILD_ARGS}
 	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
 
@@ -78,16 +107,7 @@ service-register: FORCE
 clean:
 	rm -rf ${PROJECT_DIR}/$(shell echo ${SERVICE_FILE} | cut -d. -f1 ).dist
 	rm -rf ${PROJECT_DIR}/$(shell echo ${SERVICE_FILE} | cut -d. -f1 ).build
-	rm -rf ${PROJECT_DIR}/cache
-
-docker-debug: #docker-build
-	docker run -it \
-		-e IVCAP_INSIDE_CONTAINER="" \
-		-e IVCAP_ORDER_ID=ivcap:order:0000 \
-		-e IVCAP_NODE_ID=n0 \
-		-v ${DOCKER_LOCAL_DATA_DIR}:/data \
-		--entrypoint bash \
-		${DOCKER_NAME}
+	rm -rf ${PROJECT_DIR}/cache ${PROJECT_DIR}/data
 
 docker-run-data-proxy: #docker-build
 	rm -rf /tmp/order1
