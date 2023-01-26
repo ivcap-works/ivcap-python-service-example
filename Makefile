@@ -30,8 +30,9 @@ DOCKER_LOCAL_DATA_DIR=/tmp/data
 IMG_URL=https://juststickers.in/wp-content/uploads/2016/07/go-programming-language.png
 
 run:
+	IVCAP_IN_DIR=${PROJECT_DIR}/data IVCAP_OUT_DIR=${PROJECT_DIR}/data \
 	python ${SERVICE_FILE} \
-	  --msg "$(shell date)" \
+	  --msg "$(shell date "+%H:%M:%S")" \
 		--img-url ${IMG_URL}
 
 docker-run: #docker-build

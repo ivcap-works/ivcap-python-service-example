@@ -1,9 +1,10 @@
 from PIL import Image, ImageDraw, ImageFont
 
-from ivcap_sdk_service import Service, Parameter, Option, Type, register_service, deliver, cache_file
+from ivcap_sdk_service import Service, Parameter, Option, Type, IOAdapter, IOWritable, SupportedMimeTypes
+from ivcap_sdk_service import register_service, deliver_data, fetch_data, register_saver
 import logging
 
-from typing import Dict
+from typing import Any, Dict
 
 import os
 import json
@@ -41,30 +42,41 @@ SERVICE = Service(
     ]
 )
 
+PNG_MT = 'image/png'
 
 def service(args: Dict, svc_logger: logging):
     global logger 
     logger = svc_logger
 
     # Create an image
-    img = Image.new("RGB", (args.width, args.height), "white")
+    img = Image.new("RGBA", (args.width, args.height), "white")
     
     # Add background
     if args.img_url:
-        f = cache_file(args.img_url)
+        f = fetch_data(args.img_url)
         background = Image.open(f)
         img.paste(background)
+        f.close() # the above code does not close the file
     
     # Draw message
     canvas = ImageDraw.Draw(img)
-    font = ImageFont.truetype('CaveatBrush-Regular.ttf', 100)
+    font = ImageFont.truetype('CaveatBrush-Regular.ttf', 90)
     center = (args.width / 2, args.height / 2)
     canvas.text(center, args.msg, font=font, anchor='mm', fill=(255, 130, 0))   
     
-    # Display edited image
-    #img.show()
-    
-    deliver("image.png", lambda fd: img.save(fd, format="png"),
-            type='image/png', msg=args.msg)
-    
+    # deliver_data("image", lambda fd: img.save(fd, format="png"),
+    #         PNG_MT, metadata={'msg': args.msg})
+    metadata={
+        '@type': '...',
+        'msg': args.msg,
+    }
+    deliver_data("image", img, SupportedMimeTypes.JPEG, metadata=metadata)
+
+# def png_saver(name: str, img: Any, io_adapter: IOAdapter, **kwargs):
+#     print("IMG", str(type(img)))
+#     fhdl: IOWritable = io_adapter.write_artifact(PNG_MT, f"{name}.png", **kwargs)
+#     img.save(fhdl, format="png")
+#     fhdl.close()
+# register_saver(PNG_MT, None, png_saver)
+
 register_service(SERVICE, service)
