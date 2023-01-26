@@ -1,7 +1,12 @@
 from PIL import Image, ImageDraw, ImageFont
 
+<<<<<<< HEAD
 from ivcap_sdk_service import Service, Parameter, Option, Type, IOAdapter, IOWritable, SupportedMimeTypes
 from ivcap_sdk_service import register_service, deliver_data, fetch_data, register_saver
+=======
+from ivcap_sdk_service import Service, Parameter, Type, SupportedMimeTypes, ServiceArgs
+from ivcap_sdk_service import register_service, deliver_data, fetch_data
+>>>>>>> 985051b9a823491474f90ded5a91b277d996e840
 import logging
 
 from typing import Any, Dict
@@ -44,7 +49,7 @@ SERVICE = Service(
 
 PNG_MT = 'image/png'
 
-def service(args: Dict, svc_logger: logging):
+def service(args: ServiceArgs, svc_logger: logging):
     global logger 
     logger = svc_logger
 
@@ -64,19 +69,18 @@ def service(args: Dict, svc_logger: logging):
     center = (args.width / 2, args.height / 2)
     canvas.text(center, args.msg, font=font, anchor='mm', fill=(255, 130, 0))   
     
-    # deliver_data("image", lambda fd: img.save(fd, format="png"),
-    #         PNG_MT, metadata={'msg': args.msg})
-    metadata={
-        '@type': '...',
-        'msg': args.msg,
+
+    # def png_saver(name: str, img: Any, io_adapter: IOAdapter, **kwargs):
+    #     print("IMG", str(type(img)))
+    #     fhdl: IOWritable = io_adapter.write_artifact(PNG_MT, f"{name}.png", **kwargs)
+    #     img.save(fhdl, format="png")
+    #     fhdl.close()
+    # register_saver(PNG_MT, None, png_saver)
+
+    meta = {
+       '@type': 'urn:ivcap.test:simple-python-service',
+        **args._asdict(),
     }
-    deliver_data("image", img, SupportedMimeTypes.JPEG, metadata=metadata)
-
-# def png_saver(name: str, img: Any, io_adapter: IOAdapter, **kwargs):
-#     print("IMG", str(type(img)))
-#     fhdl: IOWritable = io_adapter.write_artifact(PNG_MT, f"{name}.png", **kwargs)
-#     img.save(fhdl, format="png")
-#     fhdl.close()
-# register_saver(PNG_MT, None, png_saver)
-
+    deliver_data("image.png", lambda fd: img.save(fd, format="png"), SupportedMimeTypes.JPEG, metadata=meta)
+    
 register_service(SERVICE, service)

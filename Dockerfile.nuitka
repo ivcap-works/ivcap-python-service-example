@@ -3,9 +3,11 @@ FROM python:3.9-slim-buster AS builder
 # Install required systems libraries
 RUN apt-get update && \
   apt-get install -y --no-install-recommends \
-  git ssh && \
-  apt-get clean && \
-  rm -rf /var/lib/apt/lists/*
+  build-essential patchelf git ssh 
+
+# && \
+# apt-get clean && \
+# rm -rf /var/lib/apt/lists/*
 
 # Setup for access to private git repo
 RUN mkdir -p /root/.ssh
@@ -17,11 +19,24 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
+# for building binary
+RUN pip install nuitka
+RUN pip install orderedset
+
 # Get service files
 ADD img_test_service.py CaveatBrush-Regular.ttf ./ 
 RUN mv img_test_service.py service.py
 
+# Create binaries
+RUN python -m nuitka service.py --standalone
 
+# Create minimal service image
+FROM debian:buster-slim
+
+WORKDIR /app
+COPY --from=builder /app/service.dist .
+COPY *.ttf .
+RUN mkdir -p /data/in /data/out
 
 # VERSION INFORMATION
 ARG GIT_TAG ???
@@ -33,5 +48,4 @@ ENV IVCAP_SERVICE_COMMIT $GIT_COMMIT
 ENV IVCAP_SERVICE_BUILD $BUILD_DATE
 
 # Command to run
-RUN mkdir -p /data/in /data/out
-ENTRYPOINT ["python", "/app/service.py"]
+ENTRYPOINT ["/app/service"]
