@@ -26,8 +26,15 @@ DOCKER_DEPLOY=${DOCKER_REGISTRY}/${DOCKER_TAG}
 PROJECT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 TMP_DIR=/tmp
+
 DOCKER_LOCAL_DATA_DIR=/tmp/data
 IMG_URL=https://juststickers.in/wp-content/uploads/2016/07/go-programming-language.png
+
+GITHUB_USER_HOST?=git@github.com
+SDK_CLONE_RELATIVE=.ivcap-sdk-python
+SDK_CLONE_ABSOLUTE=${PROJECT_DIR}/.ivcap-sdk-python
+SDK_COMMIT?=HEAD
+
 
 run:
 	mkdir -p ${PROJECT_DIR}/data
@@ -36,6 +43,20 @@ run:
 		--img-url ${IMG_URL} \
 		--ivcap:out-dir ${PROJECT_DIR}/data
 	@echo ">>> Output should be in '${PROJECT_DIR}/data'"
+
+clone-sdk:
+	@if [ ! -d "${SDK_CLONE_ABSOLUTE}/.git" ]; then \
+		echo "Cloning IVCAP Python SDK"; \
+		git clone ${GITHUB_USER_HOST}:reinventingscience/ivcap-sdk-python \
+		    	${SDK_CLONE_ABSOLUTE}  || { \
+			echo "\nCould not the clone IVCAP Python SDK repository.\n"; \
+			exit 1; \
+		} \
+	fi
+	@cd ${SDK_CLONE_ABSOLUTE} && git pull || { \
+		echo "\nCould not update IVCAP Python SDK.\n"; \
+		exit 1; \
+	}
 
 docker-run: #docker-build
 	# If running Minikube, the 'data' directory needs to be created inside minikube
@@ -54,7 +75,7 @@ docker-run: #docker-build
 
 docker-run-nuitka:
 	make DOCKER_NAME=simple_python_service-nuitka run
-	
+
 docker-debug: #docker-build
 	# If running Minikube, the 'data' directory needs to be created inside minikube
 	mkdir -p ${DOCKER_LOCAL_DATA_DIR}/in ${DOCKER_LOCAL_DATA_DIR}/out
@@ -66,9 +87,11 @@ docker-debug: #docker-build
 		--entrypoint bash \
 		${DOCKER_NAME}
 
-docker-build:
+docker-build: clone-sdk
 	@echo "Building docker image ${DOCKER_NAME}"
 	docker build \
+		--build-arg SDK_PATH=${SDK_CLONE_RELATIVE} \
+		--build-arg SDK_COMMIT=${SDK_COMMIT} \
 		--build-arg GIT_COMMIT=${GIT_COMMIT} \
 		--build-arg GIT_TAG=${GIT_TAG} \
 		--build-arg BUILD_DATE="$(shell date)" \
@@ -108,11 +131,12 @@ clean:
 	rm -rf ${PROJECT_DIR}/$(shell echo ${SERVICE_FILE} | cut -d. -f1 ).dist
 	rm -rf ${PROJECT_DIR}/$(shell echo ${SERVICE_FILE} | cut -d. -f1 ).build
 	rm -rf ${PROJECT_DIR}/cache ${PROJECT_DIR}/data
+	rm -rf ${SDK_CLONE_ABSOLUTE}
 
 docker-run-data-proxy: #docker-build
 	rm -rf /tmp/order1
-	mkdir -p /tmp/order1/in 
-	mkdir -p /tmp/order1/out 
+	mkdir -p /tmp/order1/in
+	mkdir -p /tmp/order1/out
 	docker run -it \
 		-e IVCAP_INSIDE_CONTAINER="Yes" \
 		-e IVCAP_ORDER_ID=ivcap:order:0000 \
@@ -127,5 +151,5 @@ docker-run-data-proxy: #docker-build
 		--ivcap:out-dir /data/out \
 		--model deploy2.tgz \
 		--image jpg_small/FUL1_t3_0m-small.jpg
-	
+
 FORCE:
