@@ -87,7 +87,18 @@ docker-debug: #docker-build
 		--entrypoint bash \
 		${DOCKER_NAME}
 
-docker-build: clone-sdk
+docker-build:
+	@echo "Building docker image ${DOCKER_NAME}"
+	docker build \
+		--build-arg GIT_COMMIT=${GIT_COMMIT} \
+		--build-arg GIT_TAG=${GIT_TAG} \
+		--build-arg BUILD_DATE="$(shell date)" \
+		-t ${DOCKER_NAME} \
+		-f ${PROJECT_DIR}/Dockerfile \
+		${PROJECT_DIR} ${DOCKER_BILD_ARGS}
+	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
+
+docker-build-local: clone-sdk
 	@echo "Building docker image ${DOCKER_NAME}"
 	docker build \
 		--build-arg SDK_PATH=${SDK_CLONE_RELATIVE} \
@@ -96,7 +107,7 @@ docker-build: clone-sdk
 		--build-arg GIT_TAG=${GIT_TAG} \
 		--build-arg BUILD_DATE="$(shell date)" \
 		-t ${DOCKER_NAME} \
-		-f ${PROJECT_DIR}/Dockerfile \
+		-f ${PROJECT_DIR}/Dockerfile.local \
 		${PROJECT_DIR} ${DOCKER_BILD_ARGS}
 	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
 
