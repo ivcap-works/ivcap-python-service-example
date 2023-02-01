@@ -13,14 +13,15 @@ PROVIDER_NAME=ivcap.test
 AZ_DOCKER_REGISTRY=cipmain.azurecr.io
 DOCKER_REGISTRY=localhost:5000
 
-SERVICE_ID:=cayp:service:$(shell python3 -c 'import uuid; print(uuid.uuid5(uuid.NAMESPACE_DNS, \
+SERVICE_ID:=ivcap:service:$(shell python3 -c 'import uuid; print(uuid.uuid5(uuid.NAMESPACE_DNS, \
         "${PROVIDER_NAME}" + "${SERVICE_CONTAINER_NAME}"));'):${SERVICE_CONTAINER_NAME}
 
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
 GIT_TAG := $(shell git describe --abbrev=0 --tags ${TAG_COMMIT} 2>/dev/null || true)
 
 DOCKER_NAME=$(shell echo ${SERVICE_CONTAINER_NAME} | sed -E 's/-/_/g')
-DOCKER_TAG=$(shell echo ${PROVIDER_NAME} | sed -E 's/[-:]/_/g')/${DOCKER_NAME}:${GIT_COMMIT}
+DOCKER_VERSION=${GIT_COMMIT}
+DOCKER_TAG=$(shell echo ${PROVIDER_NAME} | sed -E 's/[-:]/_/g')/${DOCKER_NAME}:${DOCKER_VERSION}
 DOCKER_DEPLOY=${DOCKER_REGISTRY}/${DOCKER_TAG}
 
 PROJECT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -67,8 +68,8 @@ docker-run: #docker-build
 		-e IVCAP_NODE_ID=n0 \
 		-v ${DOCKER_LOCAL_DATA_DIR}:/data \
 		${DOCKER_NAME} \
-		--ivcap:in-dir /data/in \
-		--ivcap:out-dir /data/out \
+		--ivcap:in-dir /data \
+		--ivcap:out-dir /data \
 		--msg "$(shell date "+%d/%m-%H:%M:%S")" \
 		--img-url ${IMG_URL}
 	@echo ">>> Output should be in '${DOCKER_LOCAL_DATA_DIR}' (might be inside minikube)"
@@ -128,15 +129,19 @@ docker-publish: docker-build
 	docker push ${DOCKER_DEPLOY}
 
 service-description:
+	env IVCAP_SERVICE_ID=${SERVICE_ID} \
+		IVCAP_PROVIDER_ID=$(shell ivcap context get provider-id) \
+		IVCAP_ACCOUNT_ID=$(shell ivcap context get account-id) \
+		IVCAP_CONTAINER=${DOCKER_DEPLOY} \
 	python ${SERVICE_FILE} --ivcap:print-service-description
 
 service-register: FORCE
-	python infer_service.py --ivcap:print-service-description \
-	| sed  -E 's|@SERVICE_ID@|${SERVICE_ID}|g' \
-	| sed  -E 's|@PROVIDER_ID@|${PROVIDER_ID}|g' \
-	| sed  -E 's|@ACCOUNT_ID@|${ACCOUNT_ID}|g' \
-	| sed  -E 's|@CONTAINER@|${DOCKER_DEPLOY}|g' \
-	| ivcap service update --create ${SERVICE_ID} --format yaml -f -
+	env IVCAP_SERVICE_ID=${SERVICE_ID} \
+		IVCAP_PROVIDER_ID=$(shell ivcap context get provider-id) \
+		IVCAP_ACCOUNT_ID=$(shell ivcap context get account-id) \
+		IVCAP_CONTAINER=${DOCKER_DEPLOY} \
+	python ${SERVICE_FILE} --ivcap:print-service-description \
+	| ivcap service update --create ${SERVICE_ID} --format yaml -f - --timeout 600
 
 clean:
 	rm -rf ${PROJECT_DIR}/$(shell echo ${SERVICE_FILE} | cut -d. -f1 ).dist
