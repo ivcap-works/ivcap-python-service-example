@@ -15,6 +15,7 @@ RUN chmod 600 /root/.ssh/id_rsa
 
 WORKDIR /app
 COPY requirements.txt ./
+RUN pip install -U pip
 RUN pip install -r requirements.txt
 
 # Get service files
