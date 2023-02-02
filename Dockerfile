@@ -18,7 +18,7 @@ COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
 # Get service files
-ADD img_test_service.py CaveatBrush-Regular.ttf ./ 
+ADD img_test_service.py CaveatBrush-Regular.ttf ./
 RUN mv img_test_service.py service.py
 
 
