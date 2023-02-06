@@ -36,7 +36,6 @@ SDK_CLONE_RELATIVE=.ivcap-sdk-python
 SDK_CLONE_ABSOLUTE=${PROJECT_DIR}/.ivcap-sdk-python
 SDK_COMMIT?=HEAD
 
-
 run:
 	mkdir -p ${PROJECT_DIR}/data
 	python ${SERVICE_FILE} \
@@ -44,20 +43,6 @@ run:
 		--img-url ${IMG_URL} \
 		--ivcap:out-dir ${PROJECT_DIR}/data
 	@echo ">>> Output should be in '${PROJECT_DIR}/data'"
-
-clone-sdk:
-	@if [ ! -d "${SDK_CLONE_ABSOLUTE}/.git" ]; then \
-		echo "Cloning IVCAP Python SDK"; \
-		git clone ${GITHUB_USER_HOST}:reinventingscience/ivcap-sdk-python \
-		    	${SDK_CLONE_ABSOLUTE}  || { \
-			echo "\nCould not the clone IVCAP Python SDK repository.\n"; \
-			exit 1; \
-		} \
-	fi
-	@cd ${SDK_CLONE_ABSOLUTE} && git pull || { \
-		echo "\nCould not update IVCAP Python SDK.\n"; \
-		exit 1; \
-	}
 
 docker-run: #docker-build
 	# If running Minikube, the 'data' directory needs to be created inside minikube
@@ -99,19 +84,6 @@ docker-build:
 		${PROJECT_DIR} ${DOCKER_BILD_ARGS}
 	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
 
-docker-build-local: clone-sdk
-	@echo "Building docker image ${DOCKER_NAME}"
-	docker build \
-		--build-arg SDK_PATH=${SDK_CLONE_RELATIVE} \
-		--build-arg SDK_COMMIT=${SDK_COMMIT} \
-		--build-arg GIT_COMMIT=${GIT_COMMIT} \
-		--build-arg GIT_TAG=${GIT_TAG} \
-		--build-arg BUILD_DATE="$(shell date)" \
-		-t ${DOCKER_NAME} \
-		-f ${PROJECT_DIR}/Dockerfile.local \
-		${PROJECT_DIR} ${DOCKER_BILD_ARGS}
-	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
-
 docker-build-nuitka:
 	@echo "Building docker image ${DOCKER_NAME}"
 	docker build \
@@ -147,7 +119,6 @@ clean:
 	rm -rf ${PROJECT_DIR}/$(shell echo ${SERVICE_FILE} | cut -d. -f1 ).dist
 	rm -rf ${PROJECT_DIR}/$(shell echo ${SERVICE_FILE} | cut -d. -f1 ).build
 	rm -rf ${PROJECT_DIR}/cache ${PROJECT_DIR}/data
-	rm -rf ${SDK_CLONE_ABSOLUTE}
 
 docker-run-data-proxy: #docker-build
 	rm -rf /tmp/order1
@@ -167,5 +138,41 @@ docker-run-data-proxy: #docker-build
 		--ivcap:out-dir /data/out \
 		--model deploy2.tgz \
 		--image jpg_small/FUL1_t3_0m-small.jpg
+
+clone-sdk:
+	@if [ ! -d "${SDK_CLONE_ABSOLUTE}/.git" ]; then \
+		echo "Cloning IVCAP Python SDK"; \
+		git clone ${GITHUB_USER_HOST}:reinventingscience/ivcap-sdk-python \
+		    	${SDK_CLONE_ABSOLUTE}  || { \
+			echo "\nCould not the clone IVCAP Python SDK repository.\n"; \
+			exit 1; \
+		} \
+	fi
+	@cd ${SDK_CLONE_ABSOLUTE} && git pull || { \
+		echo "\nCould not update IVCAP Python SDK.\n"; \
+		exit 1; \
+	}
+
+docker-build-local: clone-sdk
+	@echo "Building docker image ${DOCKER_NAME}"
+	docker build \
+		--build-arg SDK_PATH=${SDK_CLONE_RELATIVE} \
+		--build-arg SDK_COMMIT=${SDK_COMMIT} \
+		--build-arg GIT_COMMIT=${GIT_COMMIT} \
+		--build-arg GIT_TAG=${GIT_TAG} \
+		--build-arg BUILD_DATE="$(shell date)" \
+		-t ${DOCKER_NAME} \
+		-f ${PROJECT_DIR}/Dockerfile.local \
+		${PROJECT_DIR} ${DOCKER_BILD_ARGS}
+	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
+
+docker-publish-local: docker-build-local
+	@echo "====> If 'unauthorized: authentication required' log into ACR with 'az acr login --name cipmain'"
+	docker tag ${DOCKER_NAME} ${DOCKER_DEPLOY}
+	docker push ${DOCKER_DEPLOY}
+
+clean-local: clean
+	rm -rf ${SDK_CLONE_ABSOLUTE}
+
 
 FORCE:
