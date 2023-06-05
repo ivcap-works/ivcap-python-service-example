@@ -94,7 +94,6 @@ Which should finally change to something like:
 The service produces a an image (`image.png`) as _product_. Let's check out the image:
 
 ```
-
 % ivcap artifact get @3
 
          ID  urn:ivcap:artifact:95339aa8-... 
@@ -145,19 +144,16 @@ we should see something like:
 First, we need to setup a Python environment:
 
 ```
-
 conda create --name ivcap_service python=3.8 -y
 conda activate ivcap_service
 pip install -r requirements.txt
-
 ```
 
 To check if everything is properly installed, use the `run` target to execute the
 service locally:
 
 ```
-
-% % make run
+% make run
 mkdir -p ./DATA
 python img_test_service.py \
           --msg "05/06-12:13:40" \
