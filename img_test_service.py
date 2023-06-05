@@ -1,10 +1,16 @@
+# import sys, os
+# sys.path.append(os.path.join(os.getcwd(), '../../ivcap-sdk-python/sdk_service/src'))
+
 from PIL import Image, ImageDraw, ImageFont
 import logging
+from pathlib import Path
 
 from ivcap_sdk_service import Service, Parameter, Type, SupportedMimeTypes, ServiceArgs
 from ivcap_sdk_service import register_service, deliver_data, fetch_data, create_metadata
 
 logger = None # set when called by SDK
+
+FONT_FILE='CaveatBrush-Regular.ttf'
 
 SERVICE = Service(
     name = "simple-python-service",
@@ -15,14 +21,9 @@ SERVICE = Service(
             type=Type.STRING, 
             description='Message to display.'),
         Parameter(
-            name='img-art', 
+            name='background-img', 
             type=Type.ARTIFACT, 
             description='Image artifact to use as background.',
-            optional=True),
-        Parameter(
-            name='img-url', 
-            type=Type.STRING, 
-            description='Image url (external) to use as background.',
             optional=True),
         Parameter(
             name='width', 
@@ -38,6 +39,12 @@ SERVICE = Service(
 )
 
 def service(args: ServiceArgs, svc_logger: logging):
+    """Called after the service has started and all paramters have been parsed and validated
+
+    Args:
+        args (ServiceArgs): A Dict where the key is one of the `Parameter` defined in the above `SERVICE`
+        svc_logger (logging): Logger to use for reporting information on the progress of execution
+    """
     global logger 
     logger = svc_logger
 
@@ -45,19 +52,20 @@ def service(args: ServiceArgs, svc_logger: logging):
     img = Image.new("RGBA", (args.width, args.height), "white")
     
     # Add background
-    if args.img_url:
-        f = fetch_data(args.img_url)
-        background = Image.open(f)
-        img.paste(background)
-        f.close() # the above code does not close the file
+    if args.background_img:
+        bg = Image.open(args.background_img)
+        bg = bg.resize((args.width, args.height))
+        img.paste(bg)
     
     # Draw message
     canvas = ImageDraw.Draw(img)
-    font = ImageFont.truetype('CaveatBrush-Regular.ttf', 90)
-    center = (args.width / 2, args.height / 2)
+    ff = f"{Path(__file__).resolve().parent}/{FONT_FILE}"
+    logger.info(f"Loading font file '{ff}'")
+    font = ImageFont.truetype(ff, 90)
+    center = (args.width / 2, 3 * args.height / 4)
     canvas.text(center, args.msg, font=font, anchor='mm', fill=(255, 130, 0))   
     
-    meta = create_metadata('urn:ivcap.test:simple-python-service', **args._asdict())
+    meta = create_metadata('urn:example:schema:simple-python-service', **args._asdict())
     deliver_data("image.png", lambda fd: img.save(fd, format="png"), SupportedMimeTypes.JPEG, metadata=meta)
 
 #####
