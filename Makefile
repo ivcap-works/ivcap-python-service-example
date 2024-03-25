@@ -9,7 +9,7 @@ PROVIDER_NAME=ivcap.test
 AZ_DOCKER_REGISTRY=cipmain.azurecr.io
 GKE_DOCKER_REGISTRY=australia-southeast1-docker.pkg.dev/reinvent-science-prod-2ae1/ivap-registry
 MINIKUBE_DOCKER_REGISTRY=localhost:5000
-DOCKER_REGISTRY=${GKE_DOCKER_REGISTRY}
+DOCKER_REGISTRY?=${GKE_DOCKER_REGISTRY}
 
 SERVICE_ID:=ivcap:service:$(shell python3 -c 'import uuid; print(uuid.uuid5(uuid.NAMESPACE_DNS, \
         "${PROVIDER_NAME}" + "${SERVICE_CONTAINER_NAME}"));'):${SERVICE_CONTAINER_NAME}
@@ -18,7 +18,7 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD)
 GIT_TAG := $(shell git describe --abbrev=0 --tags ${TAG_COMMIT} 2>/dev/null || true)
 
 DOCKER_NAME=$(shell echo ${SERVICE_CONTAINER_NAME} | sed -E 's/-/_/g')
-DOCKER_VERSION=${GIT_COMMIT}
+DOCKER_VERSION?=${GIT_COMMIT}
 DOCKER_TAG=$(shell echo ${PROVIDER_NAME} | sed -E 's/[-:]/_/g')/${DOCKER_NAME}:${DOCKER_VERSION}
 DOCKER_DEPLOY=${DOCKER_REGISTRY}/${DOCKER_TAG}
 
@@ -127,6 +127,9 @@ docker-publish: docker-build
 	docker tag ${DOCKER_NAME} ${DOCKER_DEPLOY}
 	docker push ${DOCKER_DEPLOY}
 
+minikube-docker-publish:
+	make DOCKER_REGISTRY=${MINIKUBE_DOCKER_REGISTRY} DOCKER_VERSION=latest docker-publish
+
 service-description:
 	env IVCAP_SERVICE_ID=${SERVICE_ID} \
 		IVCAP_PROVIDER_ID=$(shell ivcap context get provider-id) \
@@ -134,13 +137,17 @@ service-description:
 		IVCAP_CONTAINER=${DOCKER_DEPLOY} \
 	python ${SERVICE_FILE} --ivcap:print-service-description
 
-service-register: docker-publish
+do-service-register:
 	env IVCAP_SERVICE_ID=${SERVICE_ID} \
 		IVCAP_PROVIDER_ID=$(shell ivcap context get provider-id) \
 		IVCAP_ACCOUNT_ID=$(shell ivcap context get account-id) \
 		IVCAP_CONTAINER=${DOCKER_DEPLOY} \
 	python ${SERVICE_FILE} --ivcap:print-service-description \
 	| ivcap service update --create ${SERVICE_ID} --format yaml -f - --timeout 600
+
+service-register: docker-publish do-service-register
+
+minikube-service-register: minikube-docker-publish do-service-register
 
 clean:
 	rm -rf ${PROJECT_DIR}/$(shell echo ${SERVICE_FILE} | cut -d. -f1 ).dist

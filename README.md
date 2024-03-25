@@ -186,11 +186,15 @@ IVCAP deploymewnt.
 make docker-publish
 ```
 
+(Or for a local installation, use `make minikube-docker-publish`)
+
 Submit the service description to an IVCAP cluster. This assumes that the `ivcap-cli` tool is installed and the user is properly logged into the respective service account.
 
 ```
 make service-register
 ```
+
+(Or `make minikube-service-register`)
 
 Please note the service ID (e.g. `urn:ivcap:service:...`) as we will need that when ordering this service.
 
