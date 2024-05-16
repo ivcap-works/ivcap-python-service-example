@@ -50,7 +50,7 @@ def consume_data(args: Dict, logger: logging):
     # Consume synthetic buoy data from the queue
     start_time = time.time()
     while time.time() - start_time < args.subscription_duration * 60:
-        measurement = queue_service.dequeue(args.queue_id, message_fetch_count=1)
+        measurement = queue_service.dequeue(args.queue_id, limit=1)
         if measurement is None:
             logger.info("No data available in the queue. Waiting for data...")
             time.sleep(1)
