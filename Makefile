@@ -1,32 +1,41 @@
-SERVICE_CONTAINER_NAME=simple-python-service
-SERVICE_TITLE=Simple Python Service
+SERVICE_NAME=hello-world-python
+SERVICE_TITLE=Hello World - Python
 
-SERVICE_FILE=img_test_service.py
+SERVICE_FILE=hello_world_service.py
 
-PROVIDER_NAME=ivcap.test
+PROVIDER_NAME=ivcap.tutorial
 
-# don't foget to login 'az acr login --name cipmain'
-AZ_DOCKER_REGISTRY=cipmain.azurecr.io
-GKE_DOCKER_REGISTRY=australia-southeast1-docker.pkg.dev/reinvent-science-prod-2ae1/ivap-registry
-MINIKUBE_DOCKER_REGISTRY=localhost:5000
-DOCKER_REGISTRY=${GKE_DOCKER_REGISTRY}
+LOCAL_DOCKER_REGISTRY=localhost:5000
+K8S_DOCKER_REGISTRY=registry.default.svc.cluster.local
+GCP_DOCKER_REGISTRY=australia-southeast1-docker.pkg.dev/reinvent-science-prod-2ae1/ivcap-service
+DOCKER_REGISTRY=${GCP_DOCKER_REGISTRY}
 
 SERVICE_ID:=ivcap:service:$(shell python3 -c 'import uuid; print(uuid.uuid5(uuid.NAMESPACE_DNS, \
         "${PROVIDER_NAME}" + "${SERVICE_CONTAINER_NAME}"));'):${SERVICE_CONTAINER_NAME}
 
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
 GIT_TAG := $(shell git describe --abbrev=0 --tags ${TAG_COMMIT} 2>/dev/null || true)
+GOOS=$(shell go env GOOS)
+GOARCH=$(shell go env GOARCH)
 
-DOCKER_NAME=$(shell echo ${SERVICE_CONTAINER_NAME} | sed -E 's/-/_/g')
+DOCKER_USER="$(shell id -u):$(shell id -g)"
+
+DOCKER_DOMAIN=$(shell echo ${PROVIDER_NAME} | sed -E 's/[-:]/_/g')
+DOCKER_NAME=$(shell echo ${SERVICE_NAME} | sed -E 's/-/_/g')
 DOCKER_VERSION=${GIT_COMMIT}
-DOCKER_TAG=$(shell echo ${PROVIDER_NAME} | sed -E 's/[-:]/_/g')/${DOCKER_NAME}:${DOCKER_VERSION}
-DOCKER_DEPLOY=${DOCKER_REGISTRY}/${DOCKER_TAG}
+DOCKER_TAG=${DOCKER_DOMAIN}/${DOCKER_NAME}:${DOCKER_VERSION}
+DOCKER_TAG_LOCAL=${DOCKER_NAME}:latest
+ifeq ($(DOCKER_REGISTRY),)
+# looks like docker-desktop deployment
+DOCKER_DEPLOY=${DOCKER_TAG}
+else
+DOCKER_DEPLOY=$(DOCKER_REGISTRY)/${DOCKER_TAG}
+endif
 
 PROJECT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-
 TMP_DIR=/tmp
-
 DOCKER_LOCAL_DATA_DIR=/tmp/DATA
+
 #IMG_URL=https://juststickers.in/wp-content/uploads/2016/07/go-programming-language.png
 #IMG_URL=https://dwglogo.com/wp-content/uploads/2017/08/gopher_hanging_left_purple.png
 IMG_URL=https://wallpaperaccess.com/full/4482737.png
@@ -37,17 +46,25 @@ SDK_CLONE_RELATIVE=.ivcap-sdk-python
 SDK_CLONE_ABSOLUTE=${PROJECT_DIR}/.ivcap-sdk-python
 SDK_COMMIT?=HEAD
 
+# Check if DOCKER_REGISTRY is set to LOCAL_DOCKER_REGISTRY.
+# If true, set TARGET_PLATFORM to linux/${GOARCH} to build for the local architecture.
+# If false, set TARGET_PLATFORM to linux/amd64 as a default target platform.
+ifeq ($(DOCKER_REGISTRY), $(LOCAL_DOCKER_REGISTRY))
+TARGET_PLATFORM := linux/${GOARCH}
+else
+TARGET_PLATFORM := linux/amd64
+endif
+
 run:
 	mkdir -p ${PROJECT_DIR}/DATA
 	python ${SERVICE_FILE} \
-	  --msg "$(shell date "+%d/%m-%H:%M:%S")" \
+		--msg "$(shell date "+%d/%m-%H:%M:%S")" \
 		--background-img ${IMG_URL} \
 		--ivcap:out-dir ${PROJECT_DIR}/DATA
 	@echo ">>> Output should be in '${PROJECT_DIR}/DATA'"
 
 build:
 	pip install -r requirements.txt
-
 
 run-argo-art:
 	mkdir -p ${PROJECT_DIR}/DATA/run && rm -rf ${PROJECT_DIR}/DATA/run/*
@@ -78,10 +95,8 @@ docker-run: #docker-build
 		-v ${PROJECT_DIR}:/data/in \
 		-v ${PROJECT_DIR}/DATA/run:/data/out \
 		-v ${PROJECT_DIR}/DATA/run:/data/cache \
+		--user ${DOCKER_USER} \
 		${DOCKER_NAME} \
-		--ivcap:in-dir /data/in \
-		--ivcap:out-dir /data/out \
-		--ivcap:cache-dir /data/cache \
 		--msg "$(shell date "+%d/%m-%H:%M:%S")" \
 		--background-img ${IMG_URL}
 	@echo ">>> Output should be in '${DOCKER_LOCAL_DATA_DIR}' (might be inside minikube)"
@@ -103,10 +118,11 @@ docker-debug: #docker-build
 docker-build:
 	@echo "Building docker image ${DOCKER_NAME}"
 	docker build \
+		-t ${DOCKER_NAME} \
+		--platform=${TARGET_PLATFORM} \
 		--build-arg GIT_COMMIT=${GIT_COMMIT} \
 		--build-arg GIT_TAG=${GIT_TAG} \
 		--build-arg BUILD_DATE="$(shell date)" \
-		-t ${DOCKER_NAME} \
 		-f ${PROJECT_DIR}/Dockerfile \
 		${PROJECT_DIR} ${DOCKER_BILD_ARGS}
 	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
@@ -122,9 +138,11 @@ docker-build-nuitka:
 		${PROJECT_DIR} ${DOCKER_BILD_ARGS}
 	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
 
-docker-publish: docker-build
-	@echo "====> If 'unauthorized: authentication required' log into ACR with 'az acr login --name cipmain'"
-	docker tag ${DOCKER_NAME} ${DOCKER_DEPLOY}
+docker-publish: # docker-build
+	@echo "Building docker image ${DOCKER_NAME}"
+	@echo "====> DOCKER_REGISTRY is ${DOCKER_REGISTRY}"
+	@echo "====> DOCKER_TAG is ${DOCKER_TAG}"
+	docker tag ${DOCKER_TAG_LOCAL} ${DOCKER_DEPLOY}
 	docker push ${DOCKER_DEPLOY}
 
 service-description:

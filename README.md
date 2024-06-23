@@ -12,11 +12,12 @@ a customizable message as well as an optional background image, such as the foll
 We assume that the service has already been deployed. To check that, we can use the `ivcap` cli tool.
 
 ```
-% ivcap service list
-+----+--------------------------+------------------------------------+
-| ID | NAME                     | PROVIDER                           |
-+----+--------------------------+------------------------------------+
-| @1 | simple-python-service | urn:ivcap:provider:45a06508-...    |
+% ivcap service list --filter "name~='hello-world-python'"
++----+--------------------+--------------------------------+
+| ID | NAME               | ACCOUNT                        |
++----+--------------------+--------------------------------+
+| @1 | hello-world-python | urn:ivcap:account:45a06508-... |
++----+--------------------+--------------------------------+
 ....
 ```
 
@@ -25,33 +26,28 @@ To get more information on the service itself:
 ```
 % ivcap service get @1
 
-          ID  urn:ivcap:service:266cf1ad-...                                   
-        Name  simple-python-service                                                                    
- Description  A simple IVCAP service using the IVCAP Service SDK to create an image with text overlays 
-      Status  ???                                                                                      
- Provider ID  urn:ivcap:provider:45a06508-...                                 
-  Account ID  urn:ivcap:account:45a06508-...                                   
-  Parameters  ┌─────────┬────────────────────────────────┬──────────┬─────────┐                        
-              │ NAME    │ DESCRIPTION                    │ TYPE     │ DEFAULT │                        
-              ├─────────┼────────────────────────────────┼──────────┼─────────┤                        
-              │     msg │ Message to display.            │ string   │ ???     │                        
-              ├─────────┼────────────────────────────────┼──────────┼─────────┤                        
-              │ img-art │ Image artifact to use as backg │ artifact │ ???     │                        
-              │         │ round.                         │          │         │                        
-              ├─────────┼────────────────────────────────┼──────────┼─────────┤                        
-              │ img-url │ Image url (external) to use as │ string   │ ???     │                        
-              │         │  background.                   │          │         │                        
-              ├─────────┼────────────────────────────────┼──────────┼─────────┤                        
-              │   width │ Image width.                   │ int      │ 640     │                        
-              ├─────────┼────────────────────────────────┼──────────┼─────────┤                        
-              │  height │ Image height.                  │ int      │ 480     │                        
-              └─────────┴────────────────────────────────┴──────────┴─────────┘                        
+          ID  urn:ivcap:service:8e048dfc- (@1)
+        Name  hello-world-python
+ Description  A simple IVCAP service using the IVCAP Service SDK to create an image with text overlays
+  Account ID  urn:ivcap:account:45a06508-...
+  Parameters  ┌────────────────┬────────────────────────────────┬──────────┬─────────┬──────────┐
+              │ NAME           │ DESCRIPTION                    │ TYPE     │ DEFAULT │ OPTIONAL │
+              ├────────────────┼────────────────────────────────┼──────────┼─────────┼──────────┤
+              │            msg │ Message to display.            │ string   │         │ false    │
+              ├────────────────┼────────────────────────────────┼──────────┼─────────┼──────────┤
+              │ background-img │ Image artifact to use as backg │ artifact │         │ true     │
+              │                │ round.                         │          │         │          │
+              ├────────────────┼────────────────────────────────┼──────────┼─────────┼──────────┤
+              │          width │ Image width.                   │ int      │ 640     │ false    │
+              ├────────────────┼────────────────────────────────┼──────────┼─────────┼──────────┤
+              │         height │ Image height.                  │ int      │ 480     │ false    │
+              └────────────────┴────────────────────────────────┴──────────┴─────────┴──────────┘
 ```
 
 We can now _order_ an image by creating an _order_:
 
 ```
-% ivcap order create -n "test image order #1" urn:ivcap:service:8773f79e-... msg="Hello World" 
+% ivcap order create -n "test image order #1" urn:ivcap:service:8e048dfc-... msg="Hello World"
 Order 'urn:ivcap:order:503e98af-...' with status 'pending' submitted.
 ```
 
@@ -60,11 +56,11 @@ To check progress on this order:
 ```
 % ivcap order get urn:ivcap:order:503e98af-...
 
-         ID  urn:ivcap:order:503e98af-...                                
-       Name  test image order #1                                                                   
-     Status  executing                                                                             
-    Ordered  4 minutes ago (26 May 23 09:58 AEST)                                                  
-    Service  simple-python-service (@3)        
+         ID  urn:ivcap:order:503e98af-...
+       Name  test image order #1
+     Status  executing
+    Ordered  4 minutes ago (26 May 23 09:58 AEST)
+    Service  hello-world-python (@6)
     ...
 
 ```
@@ -74,20 +70,20 @@ Which should finally change to something like:
 ```
 % ivcap order get urn:ivcap:order:503e98af-...
 
-         ID  urn:ivcap:order:503e98af-...                                
-       Name  test image order #1                                    
-     Status  succeeded                                              
-    Ordered  3 minutes ago (01 Jun 23 15:51 AEST)                   
-    Service  simple-python-service (@5)                             
+         ID  urn:ivcap:order:503e98af-...
+       Name  test image order #1
+     Status  succeeded
+    Ordered  3 minutes ago (01 Jun 23 15:51 AEST)
+    Service  simple-python-service (@5)
  Account ID  urn:ivcap:account:45a06508-...
- Parameters  ┌───────────────────────┐                              
-             │    msg =  Hello World │                              
-             │  width =  640         │                              
-             │ height =  480         │                              
-             └───────────────────────┘                              
-   Products  ┌────┬───────────┬────────────┐                        
-             │ @1 │ image.png │ image/jpeg │                        
-             └────┴───────────┴────────────┘                        
+ Parameters  ┌───────────────────────┐
+             │    msg =  Hello World │
+             │  width =  640         │
+             │ height =  480         │
+             └───────────────────────┘
+   Products  ┌────┬───────────┬────────────┐
+             │ @1 │ image.png │ image/jpeg │
+             └────┴───────────┴────────────┘
     ...
 ```
 
@@ -96,17 +92,17 @@ The service produces a an image (`image.png`) as _product_. Let's check out the 
 ```
 % ivcap artifact get @3
 
-         ID  urn:ivcap:artifact:95339aa8-... 
-       Name  image.png                                               
-     Status  ready                                                   
-       Size  11 kB                                                   
-  Mime-type  image/jpeg                                              
- Account ID  urn:ivcap:account:45a06508-... 
-   Metadata  ┌────┬──────────────────────────────────────────┐       
-             │ @1 │ ???                                      │       
-             │ @2 │ urn:ivcap:schema:artifact-usedBy-order.1 │       
-             │ @3 │ urn:ivcap:schema:artifact.1              │       
-             └────┴──────────────────────────────────────────┘       
+         ID  urn:ivcap:artifact:95339aa8-...
+       Name  image.png
+     Status  ready
+       Size  11 kB
+  Mime-type  image/jpeg
+ Account ID  urn:ivcap:account:45a06508-...
+   Metadata  ┌────┬──────────────────────────────────────────┐
+             │ @1 │ ???                                      │
+             │ @2 │ urn:ivcap:schema:artifact-usedBy-order.1 │
+             │ @3 │ urn:ivcap:schema:artifact.1              │
+             └────┴──────────────────────────────────────────┘
 ```
 
 To download the mage, use the artifact ID from the above _image.png_
@@ -215,8 +211,8 @@ SERVICE = Service(
     description = "A simple IVCAP service using the IVCAP Service SDK to create an image with text overlays",
     parameters = [
         Parameter(
-            name='msg', 
-            type=Type.STRING, 
+            name='msg',
+            type=Type.STRING,
             description='Message to display.'),
     ...
 ```
