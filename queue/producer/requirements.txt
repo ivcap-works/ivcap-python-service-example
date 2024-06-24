@@ -1,0 +1,2 @@
+git+https://github.com/ivcap-works/ivcap-service-sdk-python@develop#egg=ivcap_sdk_service
+typing_extensions==4.11.0
