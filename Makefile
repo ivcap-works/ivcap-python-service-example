@@ -165,6 +165,7 @@ clean:
 	rm -rf ${PROJECT_DIR}/$(shell echo ${SERVICE_FILE} | cut -d. -f1 ).build
 	rm -rf ${PROJECT_DIR}/cache ${PROJECT_DIR}/DATA
 
+# IGNORE - USED ONLY FOR INTERNAL DEBUGGING
 docker-run-data-proxy: #docker-build
 	rm -rf /tmp/order1
 	mkdir -p /tmp/order1/in
@@ -173,12 +174,14 @@ docker-run-data-proxy: #docker-build
 		-e IVCAP_INSIDE_CONTAINER="Yes" \
 		-e IVCAP_ORDER_ID=ivcap:order:0000 \
 		-e IVCAP_NODE_ID=n0 \
-		-e http_proxy=http://192.168.68.118:9999 \
-	  -e https_proxy=http://192.168.68.118:9999 \
+		-e http_proxy=http://192.168.68.102:9999 \
+		-e https_proxy=http://192.168.68.102:9999 \
 		-e IVCAP_STORAGE_URL=http://artifact.local \
-	  -e IVCAP_CACHE_URL=http://cache.local \
+		-e IVCAP_CACHE_URL=http://cache.local \
+		-e IVCAP_DATA_PROXY_RETRIES=20 \
+		-e IVCAP_DATA_PROXY_DELAY=10 \
 		${DOCKER_NAME} \
-	  --msg "$(shell date "+%d/%m-%H:%M:%S")" \
-		--background-img urn:${IMG_URL} \
+		--msg "$(shell date "+%d/%m-%H:%M:%S")" \
+		--background-img urn:${IMG_URL}
 
 FORCE:
