@@ -63,7 +63,7 @@ def service(args: ServiceArgs, svc_logger: logging):
     canvas.text(center, args.msg, font=font, anchor='mm', fill=(255, 130, 0))
 
     meta = create_metadata('urn:example:schema:simple-python-service', **args._asdict())
-    deliver_data("image.png", lambda fd: img.save(fd, format="png"), SupportedMimeTypes.JPEG, metadata=meta)
+    publish_artifact("cache/image.png", lambda fd: img.save(fd, format="png"), SupportedMimeTypes.JPEG, metadata=meta)
 
 #####
 # An example of how to register an artifact saver for a non-supported Mime-Type

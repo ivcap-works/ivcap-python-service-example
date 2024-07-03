@@ -94,7 +94,7 @@ docker-run: #docker-build
 		-e IVCAP_NODE_ID=n0 \
 		-v ${PROJECT_DIR}:/data/in \
 		-v ${PROJECT_DIR}/DATA/run:/data/out \
-		-v ${PROJECT_DIR}/DATA/run:/data/cache \
+		-v ${PROJECT_DIR}/DATA/run:/app/cache \
 		--user ${DOCKER_USER} \
 		${DOCKER_NAME} \
 		--msg "$(shell date "+%d/%m-%H:%M:%S")" \

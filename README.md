@@ -179,6 +179,8 @@ To build the docker container, publish it to the repository and register the ser
 IVCAP deploymewnt.
 
 ```
+make docker-build
+
 make docker-publish
 ```
 
