@@ -98,7 +98,8 @@ docker-run: #docker-build
 		--user ${DOCKER_USER} \
 		${DOCKER_NAME} \
 		--msg "$(shell date "+%d/%m-%H:%M:%S")" \
-		--background-img ${IMG_URL}
+		--background-img ${IMG_URL} \
+		--ivcap:out-dir /app/cache
 	@echo ">>> Output should be in '${DOCKER_LOCAL_DATA_DIR}' (might be inside minikube)"
 
 docker-run-nuitka:
@@ -118,7 +119,7 @@ docker-debug: #docker-build
 docker-build:
 	@echo "Building docker image ${DOCKER_NAME}"
 	docker build \
-		-t ${DOCKER_NAME} \
+		-t ${DOCKER_TAG} \
 		--platform=${TARGET_PLATFORM} \
 		--build-arg GIT_COMMIT=${GIT_COMMIT} \
 		--build-arg GIT_TAG=${GIT_TAG} \
@@ -138,25 +139,53 @@ docker-build-nuitka:
 		${PROJECT_DIR} ${DOCKER_BILD_ARGS}
 	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
 
-docker-publish: # docker-build
+SERVICE_IMG := ${DOCKER_DEPLOY}
+PUSH_FROM := ""
+
+docker-publish:
 	@echo "Building docker image ${DOCKER_NAME}"
 	@echo "====> DOCKER_REGISTRY is ${DOCKER_REGISTRY}"
 	@echo "====> DOCKER_TAG is ${DOCKER_TAG}"
 	docker tag ${DOCKER_TAG_LOCAL} ${DOCKER_DEPLOY}
-	docker push ${DOCKER_DEPLOY}
+
+	@$(eval size:=$(shell docker inspect ${DOCKER_TAG} --format='{{.Size}}' | tr -cd '0-9'))
+	@$(eval imageSize:=$(shell expr ${size} + 0 ))
+	@echo "ImageSize is ${imageSize}"
+	@if [ ${imageSize} -gt 2000000000 ]; then \
+		set -e ; \
+		echo "preparing upload from local registry"; \
+		if [ -z "$(shell docker ps -a -q -f name=registry-2)" ]; then \
+			echo "running local registry-2"; \
+			docker run --restart always -d -p 8081:5000 --name registry-2 registry:2 ; \
+		fi; \
+		docker tag ${DOCKER_TAG} localhost:8081/${DOCKER_TAG} ; \
+		docker push localhost:8081/${DOCKER_TAG} ; \
+		$(MAKE) PUSH_FROM="localhost:8081/" docker-publish-common ; \
+	else \
+		$(MAKE) PUSH_FROM="--local " docker-publish-common; \
+	fi
+
+docker-publish-common:
+	@$(eval log:=$(shell ivcap package push --force ${PUSH_FROM}${DOCKER_TAG} | tee /dev/tty))
+	@$(eval registry := $(shell echo ${DOCKER_REGISTRY} | cut -d'/' -f1))
+	@$(eval SERVICE_IMG := $(shell echo ${log} | sed -E "s/.*(${registry}.*) pushed.*/\1/"))
+	@if [ ${SERVICE_IMG} == "" ] || [ ${SERVICE_IMG} == ${DOCKER_DEPLOY} ]; then \
+		echo "service package push failed"; \
+		exit 1; \
+	fi
 
 service-description:
 	env IVCAP_SERVICE_ID=${SERVICE_ID} \
 		IVCAP_PROVIDER_ID=$(shell ivcap context get provider-id) \
 		IVCAP_ACCOUNT_ID=$(shell ivcap context get account-id) \
-		IVCAP_CONTAINER=${DOCKER_DEPLOY} \
+		IVCAP_CONTAINER=${SERVICE_IMG} \
 	python ${SERVICE_FILE} --ivcap:print-service-description
 
 service-register: docker-publish
 	env IVCAP_SERVICE_ID=${SERVICE_ID} \
 		IVCAP_PROVIDER_ID=$(shell ivcap context get provider-id) \
 		IVCAP_ACCOUNT_ID=$(shell ivcap context get account-id) \
-		IVCAP_CONTAINER=${DOCKER_DEPLOY} \
+		IVCAP_CONTAINER=${SERVICE_IMG} \
 	python ${SERVICE_FILE} --ivcap:print-service-description \
 	| ivcap service update --create ${SERVICE_ID} --format yaml -f - --timeout 600
 

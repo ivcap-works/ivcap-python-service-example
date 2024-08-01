@@ -140,9 +140,8 @@ we should see something like:
 First, we need to setup a Python environment:
 
 ```
-conda create --name ivcap_service python=3.8 -y
-conda activate ivcap_service
-pip install -r requirements.txt
+poetry install
+poetry shell
 ```
 
 To check if everything is properly installed, use the `run` target to execute the

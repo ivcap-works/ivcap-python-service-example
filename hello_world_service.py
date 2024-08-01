@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 
 from ivcap_sdk_service import Service, Parameter, Type, SupportedMimeTypes, ServiceArgs
-from ivcap_sdk_service import register_service, deliver_data, create_metadata
+from ivcap_sdk_service import register_service, publish_artifact, create_metadata
 
 logger = None # set when called by SDK
 
@@ -63,7 +63,7 @@ def service(args: ServiceArgs, svc_logger: logging):
     canvas.text(center, args.msg, font=font, anchor='mm', fill=(255, 130, 0))
 
     meta = create_metadata('urn:example:schema:simple-python-service', **args._asdict())
-    publish_artifact("cache/image.png", lambda fd: img.save(fd, format="png"), SupportedMimeTypes.JPEG, metadata=meta)
+    publish_artifact("image.png", lambda fd: img.save(fd, format="png"), SupportedMimeTypes.JPEG, metadata=meta)
 
 #####
 # An example of how to register an artifact saver for a non-supported Mime-Type
