@@ -140,13 +140,33 @@ docker-build-nuitka:
 	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
 
 SERVICE_IMG := ${DOCKER_DEPLOY}
+PUSH_FROM := ""
 
 docker-publish:
 	@echo "Building docker image ${DOCKER_NAME}"
 	@echo "====> DOCKER_REGISTRY is ${DOCKER_REGISTRY}"
 	@echo "====> DOCKER_TAG is ${DOCKER_TAG}"
 	docker tag ${DOCKER_TAG_LOCAL} ${DOCKER_DEPLOY}
-	@$(eval log:=$(shell ivcap package push --local --force ${DOCKER_TAG} | tee /dev/tty))
+
+	@$(eval size:=$(shell docker inspect ${DOCKER_TAG} --format='{{.Size}}' | tr -cd '0-9'))
+	@$(eval imageSize:=$(shell expr ${size} + 0 ))
+	@echo "ImageSize is ${imageSize}"
+	@if [ ${imageSize} -gt 2000000000 ]; then \
+		set -e ; \
+		echo "preparing upload from local registry"; \
+		if [ -z "$(shell docker ps -a -q -f name=registry-2)" ]; then \
+			echo "running local registry-2"; \
+			docker run --restart always -d -p 8081:5000 --name registry-2 registry:2 ; \
+		fi; \
+		docker tag ${DOCKER_TAG} localhost:8081/${DOCKER_TAG} ; \
+		docker push localhost:8081/${DOCKER_TAG} ; \
+		$(MAKE) PUSH_FROM="localhost:8081/" docker-publish-common ; \
+	else \
+		$(MAKE) PUSH_FROM="--local " docker-publish-common; \
+	fi
+
+docker-publish-common:
+	@$(eval log:=$(shell ivcap package push --force ${PUSH_FROM}${DOCKER_TAG} | tee /dev/tty))
 	@$(eval registry := $(shell echo ${DOCKER_REGISTRY} | cut -d'/' -f1))
 	@$(eval SERVICE_IMG := $(shell echo ${log} | sed -E "s/.*(${registry}.*) pushed.*/\1/"))
 	@if [ ${SERVICE_IMG} == "" ] || [ ${SERVICE_IMG} == ${DOCKER_DEPLOY} ]; then \
