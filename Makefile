@@ -3,36 +3,20 @@ SERVICE_TITLE=Hello World - Python
 
 SERVICE_FILE=hello_world_service.py
 
-PROVIDER_NAME=ivcap.tutorial
-
-LOCAL_DOCKER_REGISTRY=localhost:5000
-K8S_DOCKER_REGISTRY=registry.default.svc.cluster.local
-GCP_DOCKER_REGISTRY=australia-southeast1-docker.pkg.dev/reinvent-science-prod-2ae1/ivcap-service
-DOCKER_REGISTRY=${GCP_DOCKER_REGISTRY}
-
-SERVICE_ID:=ivcap:service:$(shell python3 -c 'import uuid; print(uuid.uuid5(uuid.NAMESPACE_DNS, \
-        "${PROVIDER_NAME}" + "${SERVICE_CONTAINER_NAME}"));'):${SERVICE_CONTAINER_NAME}
-
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
 GIT_TAG := $(shell git describe --abbrev=0 --tags ${TAG_COMMIT} 2>/dev/null || true)
-GOOS=$(shell go env GOOS)
-GOARCH=$(shell go env GOARCH)
+VERSION="${GIT_TAG}|${GIT_COMMIT}|$(shell date -Iminutes)"
 
 DOCKER_USER="$(shell id -u):$(shell id -g)"
-
 DOCKER_DOMAIN=$(shell echo ${PROVIDER_NAME} | sed -E 's/[-:]/_/g')
 DOCKER_NAME=$(shell echo ${SERVICE_NAME} | sed -E 's/-/_/g')
 DOCKER_VERSION=${GIT_COMMIT}
-DOCKER_TAG=${DOCKER_DOMAIN}/${DOCKER_NAME}:${DOCKER_VERSION}
+DOCKER_TAG=${DOCKER_NAME}:${DOCKER_VERSION}
 DOCKER_TAG_LOCAL=${DOCKER_NAME}:latest
-ifeq ($(DOCKER_REGISTRY),)
-# looks like docker-desktop deployment
-DOCKER_DEPLOY=${DOCKER_TAG}
-else
-DOCKER_DEPLOY=$(DOCKER_REGISTRY)/${DOCKER_TAG}
-endif
 
 PROJECT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+TARGET_PLATFORM := linux/amd64
+
 TMP_DIR=/tmp
 DOCKER_LOCAL_DATA_DIR=/tmp/DATA
 
@@ -46,15 +30,6 @@ SDK_CLONE_RELATIVE=.ivcap-sdk-python
 SDK_CLONE_ABSOLUTE=${PROJECT_DIR}/.ivcap-sdk-python
 SDK_COMMIT?=HEAD
 
-# Check if DOCKER_REGISTRY is set to LOCAL_DOCKER_REGISTRY.
-# If true, set TARGET_PLATFORM to linux/${GOARCH} to build for the local architecture.
-# If false, set TARGET_PLATFORM to linux/amd64 as a default target platform.
-ifeq ($(DOCKER_REGISTRY), $(LOCAL_DOCKER_REGISTRY))
-TARGET_PLATFORM := linux/${GOARCH}
-else
-TARGET_PLATFORM := linux/amd64
-endif
-
 run:
 	mkdir -p ${PROJECT_DIR}/DATA
 	python ${SERVICE_FILE} \
@@ -65,22 +40,6 @@ run:
 
 build:
 	pip install -r requirements.txt
-
-run-argo-art:
-	mkdir -p ${PROJECT_DIR}/DATA/run && rm -rf ${PROJECT_DIR}/DATA/run/*
-	env IVCAP_INSIDE_CONTAINER="Yes" \
-		IVCAP_ORDER_ID=urn:ivcap:order:0000 \
-		IVCAP_NODE_ID=n0 \
-		IVCAP_IN_DIR=${PROJECT_DIR}/DATA/run \
-		IVCAP_OUT_DIR=${PROJECT_DIR}/DATA/run \
-		IVCAP_CACHE_DIR=${PROJECT_DIR}/DATA/run \
-	python ${PROJECT_DIR}/${SERVICE_FILE} \
-	  --msg "$(shell date "+%d/%m-%H:%M:%S")" \
-		--background-img ${IMAGE_ARTIFACT}
-	@echo ">>> Output should be in '${PROJECT_DIR}/DATA/run'"
-
-run-argo-url:
-	make IMAGE_ARTIFACT=urn:${IMG_URL}
 
 docker-run: #docker-build
 	@echo ""
@@ -143,10 +102,9 @@ SERVICE_IMG := ${DOCKER_DEPLOY}
 PUSH_FROM := ""
 
 docker-publish:
-	@echo "Building docker image ${DOCKER_NAME}"
-	@echo "====> DOCKER_REGISTRY is ${DOCKER_REGISTRY}"
-	@echo "====> DOCKER_TAG is ${DOCKER_TAG}"
-	docker tag ${DOCKER_TAG_LOCAL} ${DOCKER_DEPLOY}
+	@echo "Publishing docker image '${DOCKER_TAG}'"
+	docker tag ${DOCKER_TAG_LOCAL} ${DOCKER_TAG}
+	sleep 1
 
 	@$(eval size:=$(shell docker inspect ${DOCKER_TAG} --format='{{.Size}}' | tr -cd '0-9'))
 	@$(eval imageSize:=$(shell expr ${size} + 0 ))
@@ -175,17 +133,29 @@ docker-publish-common:
 	fi
 
 service-description:
-	env IVCAP_SERVICE_ID=${SERVICE_ID} \
-		IVCAP_PROVIDER_ID=$(shell ivcap context get provider-id) \
-		IVCAP_ACCOUNT_ID=$(shell ivcap context get account-id) \
-		IVCAP_CONTAINER=${SERVICE_IMG} \
+	$(eval account_id=$(shell ivcap context get account-id))
+	@if [[ ${account_id} != urn:ivcap:account:* ]]; then echo "ERROR: No IVCAP account found"; exit -1; fi
+	$(eval service_id:=urn:ivcap:service:$(shell python3 -c 'import uuid; print(uuid.uuid5(uuid.NAMESPACE_DNS, \
+        "${SERVICE_NAME}" + "${account_id}"));'))
+	$(eval image:=$(shell ivcap package list ${DOCKER_TAG}))
+	@if [[ -z "${image}" ]]; then echo "ERROR: No uploaded docker image '${DOCKER_TAG}' found"; exit -1; fi
+	@echo "ServiceID: ${service_id}"
+	env IVCAP_SERVICE_ID=${service_id} \
+		IVCAP_ACCOUNT_ID=${account_id} \
+		IVCAP_CONTAINER=${image} \
 	python ${SERVICE_FILE} --ivcap:print-service-description
 
 service-register: docker-publish
-	env IVCAP_SERVICE_ID=${SERVICE_ID} \
-		IVCAP_PROVIDER_ID=$(shell ivcap context get provider-id) \
-		IVCAP_ACCOUNT_ID=$(shell ivcap context get account-id) \
-		IVCAP_CONTAINER=${SERVICE_IMG} \
+	$(eval account_id=$(shell ivcap context get account-id))
+	@if [[ ${account_id} != urn:ivcap:account:* ]]; then echo "ERROR: No IVCAP account found"; exit -1; fi
+	$(eval service_id:=urn:ivcap:service:$(shell python3 -c 'import uuid; print(uuid.uuid5(uuid.NAMESPACE_DNS, \
+        "${SERVICE_NAME}" + "${account_id}"));'))
+	$(eval image:=$(shell ivcap package list ${DOCKER_TAG}))
+	@if [[ -z "${image}" ]]; then echo "ERROR: No uploaded docker image '${DOCKER_TAG}' found"; exit -1; fi
+	@echo "ServiceID: ${service_id}"
+	env IVCAP_SERVICE_ID=${service_id} \
+		IVCAP_ACCOUNT_ID=${account_id} \
+		IVCAP_CONTAINER=${image} \
 	python ${SERVICE_FILE} --ivcap:print-service-description \
 	| ivcap service update --create ${SERVICE_ID} --format yaml -f - --timeout 600
 
