@@ -8,7 +8,6 @@ GIT_TAG := $(shell git describe --abbrev=0 --tags ${TAG_COMMIT} 2>/dev/null || t
 VERSION="${GIT_TAG}|${GIT_COMMIT}|$(shell date -Iminutes)"
 
 DOCKER_USER="$(shell id -u):$(shell id -g)"
-DOCKER_DOMAIN=$(shell echo ${PROVIDER_NAME} | sed -E 's/[-:]/_/g')
 DOCKER_NAME=$(shell echo ${SERVICE_NAME} | sed -E 's/-/_/g')
 DOCKER_VERSION=${GIT_COMMIT}
 DOCKER_TAG=${DOCKER_NAME}:${DOCKER_VERSION}
