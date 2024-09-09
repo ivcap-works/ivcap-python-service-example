@@ -97,7 +97,7 @@ docker-build-nuitka:
 		${PROJECT_DIR} ${DOCKER_BILD_ARGS}
 	@echo "\nFinished building docker image ${DOCKER_NAME}\n"
 
-SERVICE_IMG := ${DOCKER_DEPLOY}
+SERVICE_IMG := ""
 PUSH_FROM := ""
 
 docker-publish:
@@ -123,13 +123,7 @@ docker-publish:
 	fi
 
 docker-publish-common:
-	@$(eval log:=$(shell ivcap package push --force ${PUSH_FROM}${DOCKER_TAG} | tee /dev/tty))
-	@$(eval registry := $(shell echo ${DOCKER_REGISTRY} | cut -d'/' -f1))
-	@$(eval SERVICE_IMG := $(shell echo ${log} | sed -E "s/.*(${registry}.*) pushed.*/\1/"))
-	@if [ ${SERVICE_IMG} == "" ] || [ ${SERVICE_IMG} == ${DOCKER_DEPLOY} ]; then \
-		echo "service package push failed"; \
-		exit 1; \
-	fi
+	ivcap package push --force ${PUSH_FROM}${DOCKER_TAG}
 
 service-description:
 	$(eval account_id=$(shell ivcap context get account-id))
@@ -156,7 +150,7 @@ service-register: docker-publish
 		IVCAP_ACCOUNT_ID=${account_id} \
 		IVCAP_CONTAINER=${image} \
 	python ${SERVICE_FILE} --ivcap:print-service-description \
-	| ivcap service update --create ${SERVICE_ID} --format yaml -f - --timeout 600
+	| ivcap service update --create ${service_id} --format yaml -f - --timeout 600
 
 clean:
 	rm -rf ${PROJECT_DIR}/$(shell echo ${SERVICE_FILE} | cut -d. -f1 ).dist
